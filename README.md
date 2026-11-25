@@ -46,6 +46,20 @@ Four steps, each a separate piece:
    prompt and the list of findings (types and placeholders, never
    the values).
 
+The same flow as a diagram:
+
+```mermaid
+flowchart TD
+    A["Client sends a prompt that may contain PII"] --> B["API Gateway: POST /guard"]
+    B --> C["Guard Lambda runs detection"]
+    C --> C1["Rules detector, or Comprehend DetectPiiEntities"]
+    C1 --> D["Redact to typed placeholders; the mapping stays in request memory"]
+    D --> E["Stub model receives the redacted prompt only"]
+    E --> F["Reply returns with placeholders in it"]
+    F --> G["Rehydrate from the request mapping, then drop it"]
+    G --> H["Response: reply, findings, and redacted prompt"]
+```
+
 Detection runs in two modes behind one interface. **Rules mode** is
 deterministic and local: patterns and checksums, same input, same
 output, every time. **Comprehend mode** calls Amazon Comprehend
