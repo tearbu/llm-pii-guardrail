@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  PII protection middleware for LLM APIs. One Lambda behind API
+  Gateway scans each prompt for personal data, redacts it with typed
+  placeholders, and keeps the placeholder mapping in request memory
+  only. Nothing is stored. The function's only AWS permission is
+  comprehend:DetectPiiEntities, used when a request asks for
+  comprehend mode; rules mode needs no AWS calls at all.
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 256
+
+Resources:
+  GuardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-guard"
+      CodeUri: src/
+      Handler: handler.lambda_handler
+      Description: Redacts PII from prompts before they reach a model.
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - comprehend:DetectPiiEntities
+              Resource: "*"
+      Events:
+        Guard:
+          Type: Api
+          Properties:
+            Path: /guard
+            Method: post
+
+Outputs:
+  ApiUrl:
+    Description: Base URL of the guardrail API (POST /guard)
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
