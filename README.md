@@ -219,12 +219,21 @@ the values restored locally. A clean prompt came back
 unchanged with no findings.
 
 Comprehend mode is the open item. I exercised it live for the
-first time during this deployment and it failed: the account
-is not subscribed to Amazon Comprehend, so DetectPiiEntities
-refused the call with a SubscriptionRequiredException and the
-API returned a generic 502. The fix is to enable the service
-on the account and retest. The full record, including the
-exact error, is in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+first time during this deployment and it failed:
+DetectPiiEntities refused the call with a
+SubscriptionRequiredException and the API returned a generic
+502. I traced the cause afterwards: the account registration
+is incomplete and the account sits on the free plan, which
+limits access to certain services. Opening the Comprehend
+console redirects to an AWS "Complete your account setup"
+page asking for a payment method, identity verification, and
+a support plan selection. There is no Comprehend-specific
+activation to click; the gate is the account itself. I have
+decided to leave the registration incomplete for now, so
+Comprehend mode stays unverified by decision, with the route
+to enable it recorded in
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for later. The full
+record, including the exact error, is in that file too.
 
 ## Worth
 
@@ -249,14 +258,22 @@ Honest limits:
   the account.** I deployed the stack on 25 November 2026 and
   verified rules mode end to end against the live API.
   Comprehend mode was exercised live for the first time and
-  failed for an account reason, not a code reason: the account
-  is not subscribed to Amazon Comprehend, so DetectPiiEntities
-  refused the call with a SubscriptionRequiredException. It
-  stays unverified until I enable the service on the account
-  and retest. The API also surfaces that failure as a generic
-  502, so a caller cannot tell a service refusal from a code
-  bug without reading the Lambda logs. Making that error
-  clearer is future work.
+  failed for an account reason, not a code reason:
+  DetectPiiEntities refused the call with a
+  SubscriptionRequiredException because the account
+  registration is incomplete and the account is on the free
+  plan, which limits access to certain services. There is no
+  Comprehend activation step to click; completing the account
+  registration is the fix, and I have decided to leave the
+  registration incomplete for now. The mode stays unverified
+  by decision, with the route to enable it recorded in
+  docs/DEPLOYMENT.md for later, even
+  though the request path, the IAM permission, and the
+  handler all work, proven by the call reaching Comprehend
+  and being refused by the service. The API also surfaces that
+  failure as a generic 502, so a caller cannot tell a service
+  refusal from a code bug without reading the Lambda logs.
+  Making that error clearer is future work.
 - **Rules miss names and free-form addresses.** The name heuristic
   needs a trigger phrase like "my name is", and the address
   heuristic needs a number, a street name, and a known suffix. A
