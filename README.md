@@ -194,24 +194,37 @@ comprehend:DetectPiiEntities, and the ApiUrl output. It passed.
 What it cannot do is run the SAM transform or deploy anything, so
 it cannot rule out transform errors or dependency cycles. The
 template is kept to one function, one event, and one permission
-partly to shrink that risk, but only a real deployment settles it,
-and that has not happened yet for this project.
+partly to shrink that risk, but only a real deployment settles
+it. I have now made that deployment; the Deploying to AWS
+section below and docs/DEPLOYMENT.md carry the record,
+including the one real failure it surfaced.
 
 ## Deploying to AWS
 
-Not yet done. When it happens, the shape is the same two commands
-the sibling projects used, from CloudShell:
+Done. I deployed this stack live on 25 November 2026, with SAM
+from CloudShell, into account 762103021017 in us-east-1. The
+stack is named llm-pii-guardrail and it finished at
+CREATE_COMPLETE. The function is llm-pii-guardrail-guard, and
+the API base URL from the stack outputs is:
 
-```bash
-aws cloudformation package --template-file template.yaml \
-  --s3-bucket <artifacts-bucket> --output-template-file packaged.yaml
-aws cloudformation deploy --template-file packaged.yaml \
-  --stack-name llm-pii-guardrail --capabilities CAPABILITY_IAM
-```
+https://a8y7o0ixr3.execute-api.us-east-1.amazonaws.com/Prod
 
-Then POST a JSON body like {"prompt": "...", "mode": "rules"} to
-<API URL>/guard. Comprehend mode is exercised only after this
-deployment, since that is the first place its permission exists.
+I verified rules mode end to end against the live API. A POST
+to /guard with a prompt carrying a test card number, an SSN,
+and an email came back with HTTP 200, the redacted prompt "My
+card is [CARD_1] and my SSN is [SSN_1], email me at [EMAIL_1]",
+findings for CARD, SSN, and EMAIL, a stub model reply that
+only ever saw the placeholders, and a rehydrated reply with
+the values restored locally. A clean prompt came back
+unchanged with no findings.
+
+Comprehend mode is the open item. I exercised it live for the
+first time during this deployment and it failed: the account
+is not subscribed to Amazon Comprehend, so DetectPiiEntities
+refused the call with a SubscriptionRequiredException and the
+API returned a generic 502. The fix is to enable the service
+on the account and retest. The full record, including the
+exact error, is in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Worth
 
@@ -232,12 +245,18 @@ What this project shows, in practical terms:
 
 Honest limits:
 
-- **Verified locally in rules mode only.** The demo, the tests, and
-  the template check above are all local runs. Comprehend mode is
-  code plus a fake-client test of its type mapping; it has never
-  called the real service. Live AWS deployment is the next step,
-  not a done thing, and the deployed upgrade path may still surface
-  template problems the local check cannot see.
+- **Verified live in rules mode; Comprehend mode blocked by
+  the account.** I deployed the stack on 25 November 2026 and
+  verified rules mode end to end against the live API.
+  Comprehend mode was exercised live for the first time and
+  failed for an account reason, not a code reason: the account
+  is not subscribed to Amazon Comprehend, so DetectPiiEntities
+  refused the call with a SubscriptionRequiredException. It
+  stays unverified until I enable the service on the account
+  and retest. The API also surfaces that failure as a generic
+  502, so a caller cannot tell a service refusal from a code
+  bug without reading the Lambda logs. Making that error
+  clearer is future work.
 - **Rules miss names and free-form addresses.** The name heuristic
   needs a trigger phrase like "my name is", and the address
   heuristic needs a number, a street name, and a known suffix. A
@@ -266,6 +285,7 @@ template.yaml   AWS SAM template, one Lambda behind API Gateway
 run_demo.py     the local end to end run
 validate_template.py   structural check of the SAM template
 ARCHITECTURE.md flow, components, and decisions in full
+docs/           DEPLOYMENT.md, the record of the live deployment
 ```
 
 ## License
